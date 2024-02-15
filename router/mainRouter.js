@@ -42,7 +42,7 @@ router.get('/userDiscussions', validToken, getUserDiscussions);
 // Route to get comments made by the user
 router.get('/userComments', validToken, getUserComments);
 
-router.get('/api/chat/users/:userId', validToken, getChatUsers);
-router.get('/api/messages/:fromId/:toId', validToken, getMessages);
+router.get('/api/chat/users', validToken, getChatUsers);
+router.get('/api/messages/:toId', validToken, getMessages);
 
 module.exports = router;

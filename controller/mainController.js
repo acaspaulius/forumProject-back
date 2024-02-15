@@ -103,13 +103,25 @@ module.exports = {
 
     try {
       const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await userSchema.findOne({ username: decodedToken.username });
+      const user = await userSchema.findOne({
+        username: decodedToken.username,
+      });
 
       if (!user || !user.isActive) {
         return resSend(res, false, null, 'User not found or not active.');
       }
 
-      resSend(res, true, { username: user.username, image: user.image, role: user.role }, 'Successfully authenticated.');
+      resSend(
+        res,
+        true,
+        {
+          _id: user._id,
+          username: user.username,
+          image: user.image,
+          role: user.role,
+        },
+        'Successfully authenticated.'
+      );
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
         resSend(res, false, null, 'Token expired.');
@@ -297,7 +309,11 @@ module.exports = {
       }
 
       // Add the comment to the found discussion
-      discussion.replies.push({ message: text, user: userId, createdAt: new Date() });
+      discussion.replies.push({
+        message: text,
+        user: userId,
+        createdAt: new Date(),
+      });
 
       // Mark the modified path before saving
       topicDocument.markModified('discussions');
@@ -329,7 +345,9 @@ module.exports = {
     try {
       const userId = req.user._id;
       // Fetch all topics without limiting the discussions fetched
-      const topics = await topicSchema.find({ 'discussions.replies.user': userId });
+      const topics = await topicSchema.find({
+        'discussions.replies.user': userId,
+      });
       let userComments = [];
 
       topics.forEach((topic) => {
@@ -364,7 +382,9 @@ module.exports = {
         .populate('from to', 'username');
 
       const userIds = [...new Set(messages.flatMap((msg) => [msg.from.id, msg.to.id].filter((id) => id.toString() !== userId.toString())))];
+
       const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id image'); // Assuming you want to return usernames and ids
+
       resSend(res, true, users, 'Chat users fetched successfully.');
     } catch (err) {
       console.error('Error fetching chat users:', err);
