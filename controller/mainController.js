@@ -80,7 +80,14 @@ module.exports = {
         return resSend(
           res,
           true,
-          { token, username: existingUser.username, email: existingUser.email, image: existingUser.image, role: existingUser.role },
+          {
+            token,
+            username: existingUser.username,
+            email: existingUser.email,
+            image: existingUser.image,
+            role: existingUser.role,
+            _id: existingUser._id,
+          },
           'Login successful.'
         );
       } else {
@@ -357,7 +364,7 @@ module.exports = {
         .populate('from to', 'username');
 
       const userIds = [...new Set(messages.flatMap((msg) => [msg.from.id, msg.to.id].filter((id) => id.toString() !== userId.toString())))];
-      const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id'); // Assuming you want to return usernames and ids
+      const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id image'); // Assuming you want to return usernames and ids
       resSend(res, true, users, 'Chat users fetched successfully.');
     } catch (err) {
       console.error('Error fetching chat users:', err);

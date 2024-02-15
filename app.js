@@ -9,10 +9,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Assuming Socket.IO and Express should share the same port
-const io = new Server(3000, {
+const http = require('http');
+const server = http.createServer(app);
+const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: '*',
   },
 });
 
@@ -30,16 +31,20 @@ io.on('connection', (socket) => {
 
   socket.on('sendMessage', async (data) => {
     console.log('Received message:', data);
+    if (!data.from || !data.to || !data.message) {
+      console.error('Error: Missing required fields');
+      return;
+    }
+
     try {
-      const message = {
+      const message = new messageSchema({
         from: data.from,
         to: data.to,
         message: data.message,
-        createdAt: data.createdAt,
-      };
-      // Ensure that 'from' field is populated with user's ID
-      const savedMessage = await new messageSchema(message).save();
-      io.emit('receiveMessage', savedMessage); // Emit to all clients for simplicity
+        createdAt: data.createdAt || new Date(), // Use provided createdAt or current time
+      });
+      const savedMessage = await message.save();
+      io.emit('receiveMessage', savedMessage); // Emit to all clients
     } catch (err) {
       console.error('Error saving message:', err);
     }
@@ -50,4 +55,4 @@ io.on('connection', (socket) => {
   });
 });
 
-app.listen(2500);
+server.listen(2500, () => console.log('Server running on port 2500'));
