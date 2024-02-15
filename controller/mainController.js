@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const userSchema = require('../schemas/userSchema');
 const topicSchema = require('../schemas/topicSchema');
+const messageSchema = require('../schemas/messageSchema');
 
 require('dotenv').config();
 
@@ -307,9 +308,9 @@ module.exports = {
   getUserDiscussions: async (req, res) => {
     try {
       const userId = req.user._id;
-      console.log('Fetching discussions for user ID:', userId);
+
       const userDiscussions = await topicSchema.find({ 'discussions.user': userId }, { 'discussions.$': 1 });
-      console.log('Found discussions:', userDiscussions);
+
       resSend(res, true, userDiscussions.map((u) => u.discussions).flat(), 'User discussions retrieved successfully.');
     } catch (error) {
       console.error('Error fetching user discussions:', error);
@@ -337,12 +338,51 @@ module.exports = {
           });
         });
       });
-
-      console.log('Found comments:', userComments);
       resSend(res, true, userComments, 'User comments retrieved successfully.');
     } catch (error) {
       console.error('Error fetching user comments:', error);
       resSend(res, false, error.message);
+    }
+  },
+
+  getChatUsers: async (req, res) => {
+    try {
+      // Instead of getting userId from params, use it from the verified token
+      const userId = req.user._id; // Assuming req.user is set by validToken middleware
+
+      const messages = await messageSchema
+        .find({
+          $or: [{ from: userId }, { to: userId }],
+        })
+        .populate('from to', 'username');
+
+      const userIds = [...new Set(messages.flatMap((msg) => [msg.from.id, msg.to.id].filter((id) => id.toString() !== userId.toString())))];
+      const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id'); // Assuming you want to return usernames and ids
+      resSend(res, true, users, 'Chat users fetched successfully.');
+    } catch (err) {
+      console.error('Error fetching chat users:', err);
+      resSend(res, false, null, 'Internal server error.');
+    }
+  },
+
+  getMessages: async (req, res) => {
+    try {
+      // Use req.user to fetch messages for the authenticated user
+      const userId = req.user._id; // Assuming req.user is set by validToken middleware
+      const { toId } = req.params; // Assuming you're fetching messages between the authenticated user and another specified user
+
+      const messages = await messageSchema
+        .find({
+          $or: [
+            { from: userId, to: toId },
+            { from: toId, to: userId },
+          ],
+        })
+        .sort('createdAt');
+      resSend(res, true, messages, 'Messages fetched successfully.');
+    } catch (err) {
+      console.error('Error fetching messages:', err);
+      resSend(res, false, null, 'Internal server error.');
     }
   },
 };

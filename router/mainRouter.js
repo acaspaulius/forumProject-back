@@ -15,6 +15,8 @@ const {
   createComment,
   getUserComments,
   getUserDiscussions,
+  getChatUsers,
+  getMessages,
 } = require('../controller/mainController');
 const { validEmail, validPassword, validToken, validLink } = require('../middleware/middleware');
 
@@ -39,5 +41,8 @@ router.get('/userDiscussions', validToken, getUserDiscussions);
 
 // Route to get comments made by the user
 router.get('/userComments', validToken, getUserComments);
+
+router.get('/api/chat/users/:userId', validToken, getChatUsers);
+router.get('/api/messages/:fromId/:toId', validToken, getMessages);
 
 module.exports = router;
