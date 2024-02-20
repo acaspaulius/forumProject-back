@@ -15,12 +15,12 @@ module.exports = {
     try {
       const existingUsernameUser = await userSchema.findOne({ username });
       if (existingUsernameUser) {
-        return resSend(res, false, null, 'Username already taken.');
+        return resSend(res, false, null, 'Username already taken.', 409); // 409 Conflict
       }
 
       const existingEmailUser = await userSchema.findOne({ email });
       if (existingEmailUser) {
-        return resSend(res, false, null, 'Email already taken.');
+        return resSend(res, false, null, 'Email already taken.', 409); // 409 Conflict
       }
 
       const hashedPassword = await bcrypt.hash(password1, 10);
@@ -52,9 +52,9 @@ module.exports = {
       };
       await transporter.sendMail(mailOptions);
 
-      resSend(res, true, null, 'Registration successful. Please check your email for the activation code.');
+      resSend(res, true, null, 'Registration successful. Please check your email for the activation code.', 201); // 201 Created
     } catch (error) {
-      resSend(res, false, null, 'Internal server error.');
+      resSend(res, false, null, 'Internal server error.', 500); // 500 Internal Server Error
     }
   },
 
@@ -64,17 +64,17 @@ module.exports = {
       const existingUser = await userSchema.findOne({ username });
 
       if (!existingUser) {
-        return resSend(res, false, null, 'Wrong username or password.');
+        return resSend(res, false, null, 'Wrong username or password.', 401); // 401 Unauthorized
       }
 
       if (!existingUser.isActive) {
-        return resSend(res, false, null, 'User is not verified. Please enter activation code.');
+        return resSend(res, false, null, 'User is not verified. Please enter activation code.', 401); // 401 Unauthorized
       }
 
       const isPasswordMatch = await bcrypt.compare(password1, existingUser.password);
       if (isPasswordMatch) {
         const token = jwt.sign({ username: existingUser.username }, process.env.JWT_SECRET, {
-          expiresIn: '1h',
+          expiresIn: '12h',
         });
 
         return resSend(
@@ -88,13 +88,14 @@ module.exports = {
             role: existingUser.role,
             _id: existingUser._id,
           },
-          'Login successful.'
+          'Login successful.',
+          200
         );
       } else {
-        return resSend(res, false, null, 'Wrong username or password.');
+        return resSend(res, false, null, 'Wrong username or password.', 401); // 401 Unauthorized
       }
     } catch (error) {
-      return resSend(res, false, null, 'Error during login.');
+      return resSend(res, false, null, 'Error during login.', 500); // 500 Internal Server Error
     }
   },
 
@@ -108,7 +109,7 @@ module.exports = {
       });
 
       if (!user || !user.isActive) {
-        return resSend(res, false, null, 'User not found or not active.');
+        return resSend(res, false, null, 'User not found or not active.', 404); // 404 Not Found
       }
 
       resSend(
@@ -120,17 +121,16 @@ module.exports = {
           image: user.image,
           role: user.role,
         },
-        'Successfully authenticated.'
+        'Successfully authenticated.',
+        200
       );
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        resSend(res, false, null, 'Token expired.');
+        resSend(res, false, null, 'Token expired.', 401); // 401 Unauthorized
       } else if (error.name === 'JsonWebTokenError') {
-        resSend(res, false, null, 'Invalid token.');
+        resSend(res, false, null, 'Invalid token.', 400); // 400 Bad Request
       } else {
-        // Log the error for server-side visibility
-        console.error('Auto-login error:', error);
-        resSend(res, false, null, 'Internal server error.');
+        resSend(res, false, null, 'Error during auto login.', 500); // 500 Internal Server Error
       }
     }
   },
@@ -144,7 +144,7 @@ module.exports = {
         emailActivation: activationCode.trim(),
       });
       if (!user) {
-        return resSend(res, false, null, 'Incorrect code or user.');
+        return resSend(res, false, null, 'Incorrect code or user.', 400);
       }
 
       user.isActive = true;
@@ -155,9 +155,9 @@ module.exports = {
         expiresIn: '1h',
       });
 
-      resSend(res, true, { token, username: user.username }, 'User successfully activated.');
+      resSend(res, true, { token, username: user.username }, 'User successfully activated.', 200);
     } catch (error) {
-      resSend(res, false, null, 'Error verifying activation code.');
+      resSend(res, false, null, 'Error verifying activation code.', 500);
     }
   },
 
@@ -168,10 +168,10 @@ module.exports = {
     const updatedUser = await userSchema.findOneAndUpdate({ username }, { $set: { image: newImg } }, { new: true, runValidators: true });
 
     if (!updatedUser) {
-      return resSend(res, false, null, 'User not found or could not be updated.');
+      return resSend(res, false, null, 'User not found or could not be updated.', 404);
     }
 
-    return resSend(res, true, { username, image: updatedUser.image, role: updatedUser.role }, 'Image updated successfully.');
+    return resSend(res, true, { username, image: updatedUser.image, role: updatedUser.role }, 'Image updated successfully.', 200);
   },
 
   createTopic: async (req, res) => {
@@ -182,11 +182,11 @@ module.exports = {
       // First, find the user to check if they are an admin
       const user = await userSchema.findOne({ username });
       if (!user) {
-        return resSend(res, false, null, 'User not found.');
+        return resSend(res, false, null, 'User not found.', 404);
       }
 
       if (user.role !== 'admin') {
-        return resSend(res, false, null, 'Only admins can create topics.');
+        return resSend(res, false, null, 'Only admins can create topics.', 403);
       }
 
       // User is found and is an admin, create the topic
@@ -198,20 +198,20 @@ module.exports = {
       console.log(newTopic);
 
       await newTopic.save();
-      return resSend(res, true, newTopic, 'Topic created successfully.');
+      return resSend(res, true, newTopic, 'Topic created successfully.', 201);
     } catch (error) {
       console.error('Create Topic Error:', error);
-      return resSend(res, false, null, 'Internal server error.');
+      return resSend(res, false, null, 'Internal server error.', 500);
     }
   },
 
   getTopics: async (req, res) => {
     try {
       const topics = await topicSchema.find(); // Fetch all topics
-      resSend(res, true, topics, 'Topics fetched successfully.');
+      resSend(res, true, topics, 'Topics fetched successfully.', 200);
     } catch (error) {
       console.error('Error fetching topics:', error);
-      resSend(res, false, null, 'Internal server error');
+      resSend(res, false, null, 'Internal server error', 500);
     }
   },
 
@@ -221,10 +221,9 @@ module.exports = {
       const topicTitle = req.body.topic.toLowerCase();
 
       const topic = await topicSchema.findOne({ title: topicTitle });
-      console.log('BACKEND TOPIC', topic);
 
       if (!topic) {
-        return resSend(res, false, 'Topic not found');
+        return resSend(res, false, 'Topic not found', 404);
       }
 
       const newDiscussion = {
@@ -233,13 +232,11 @@ module.exports = {
         user: req.user._id, // Assuming you have user data in req.user
       };
 
-      console.log('NEW DISCUSSION', newDiscussion);
-
       topic.discussions.push(newDiscussion);
       await topic.save();
-      resSend(res, true, newDiscussion, 'Discussion created successfully');
+      resSend(res, true, newDiscussion, 'Discussion created successfully', 201);
     } catch (error) {
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
     }
   },
 
@@ -250,11 +247,11 @@ module.exports = {
 
       const topic = await topicSchema.findOne({ title: topicTitle });
       if (!topic) {
-        return resSend(res, false, 'Topic not found');
+        return resSend(res, false, 'Topic not found', 404);
       }
-      resSend(res, true, topic.discussions, 'Discussions retrieved successfully');
+      resSend(res, true, topic.discussions, 'Discussions retrieved successfully', 201);
     } catch (error) {
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
     }
   },
 
@@ -275,43 +272,45 @@ module.exports = {
         });
 
       if (!topic) {
-        return resSend(res, false, 'Topic not found');
+        return resSend(res, false, 'Topic not found', 404);
       }
 
       // Extract the specific discussion from the topic document, this part remains unchanged
       const discussion = topic.discussions.id(req.params.id);
       if (!discussion) {
-        return resSend(res, false, 'Discussion not found');
+        return resSend(res, false, 'Discussion not found', 404);
       }
 
-      resSend(res, true, discussion, 'Discussion retrieved successfully');
+      resSend(res, true, discussion, 'Discussion retrieved successfully', 200);
     } catch (error) {
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
     }
   },
 
   createComment: async (req, res) => {
     try {
       const { topic, id } = req.params; // 'topic' is the title of the topic
-      const { text } = req.body;
+      const { text, youtubeVideoId, imageUrl } = req.body;
       const userId = req.user._id;
 
       // Find the topic by its title
       const topicDocument = await topicSchema.findOne({ title: topic });
       if (!topicDocument) {
-        return resSend(res, false, 'Topic not found');
+        return resSend(res, false, 'Topic not found', 404);
       }
 
       // Find the specific discussion by ID within the topic
       const discussion = topicDocument.discussions.find((discussion) => discussion._id.toString() === id);
       if (!discussion) {
-        return resSend(res, false, 'Discussion not found');
+        return resSend(res, false, 'Discussion not found', 404);
       }
 
       // Add the comment to the found discussion
       discussion.replies.push({
-        message: text,
         user: userId,
+        message: text,
+        youtubeVideoId, // Save if provided
+        imageUrl, // Save if provided
         createdAt: new Date(),
       });
 
@@ -321,10 +320,47 @@ module.exports = {
       // Save the updated topic document
       await topicDocument.save();
 
-      resSend(res, true, { replies: discussion.replies }, 'Comment added successfully');
+      resSend(res, true, { replies: discussion.replies }, 'Comment added successfully', 200);
     } catch (error) {
       console.error('Error adding comment:', error);
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
+    }
+  },
+
+  deleteComment: async (req, res) => {
+    try {
+      const { topic, id, commentId } = req.params;
+      const userId = req.user._id.toString();
+
+      // Find the topic document that contains the discussion
+      const topicDocument = await topicSchema.findOne({ 'discussions._id': id });
+
+      if (!topicDocument) {
+        return resSend(res, false, 'Discussion not found', 404);
+      }
+
+      // Find the specific discussion
+      const discussion = topicDocument.discussions.id(id);
+      if (!discussion) {
+        return resSend(res, false, 'Discussion not found', 404);
+      }
+
+      // Find the specific comment and check if the user is authorized to delete it
+      const commentIndex = discussion.replies.findIndex((c) => c._id.toString() === commentId && c.user.toString() === userId);
+      if (commentIndex === -1) {
+        return resSend(res, false, 'Comment not found or user not authorized', 401);
+      }
+
+      // Remove the comment
+      discussion.replies.splice(commentIndex, 1);
+
+      // Save the updated topic document
+      await topicDocument.save();
+
+      resSend(res, true, {}, 'Comment deleted successfully', 200);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      resSend(res, false, error.message, 500);
     }
   },
 
@@ -332,19 +368,30 @@ module.exports = {
     try {
       const userId = req.user._id;
 
-      const userDiscussions = await topicSchema.find({ 'discussions.user': userId }, { 'discussions.$': 1 });
+      const userDiscussions = await topicSchema
+        .find({ 'discussions.user': userId })
+        .select({
+          'discussions.$': 1,
+          title: 1,
+          _id: 0,
+        })
+        .lean();
+      const simplifiedData = userDiscussions.map((topic) => ({
+        topic: topic.title,
+        topicId: topic._id,
+        ...topic.discussions[0],
+      }));
 
-      resSend(res, true, userDiscussions.map((u) => u.discussions).flat(), 'User discussions retrieved successfully.');
+      resSend(res, true, simplifiedData, 'User discussions retrieved successfully.', 200);
     } catch (error) {
       console.error('Error fetching user discussions:', error);
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
     }
   },
 
   getUserComments: async (req, res) => {
     try {
       const userId = req.user._id;
-      // Fetch all topics without limiting the discussions fetched
       const topics = await topicSchema.find({
         'discussions.replies.user': userId,
       });
@@ -357,16 +404,18 @@ module.exports = {
               userComments.push({
                 discussionTitle: discussion.title,
                 comment: reply.message,
-                // Include any other details you need
+                topic: topic, // Assuming the topic object has an _id field
+                discussionId: discussion._id, // Assuming the discussion object has an _id field
+                time: reply.createdAt,
               });
             }
           });
         });
       });
-      resSend(res, true, userComments, 'User comments retrieved successfully.');
+      resSend(res, true, userComments, 'User comments retrieved successfully.', 200);
     } catch (error) {
       console.error('Error fetching user comments:', error);
-      resSend(res, false, error.message);
+      resSend(res, false, error.message, 500);
     }
   },
 
@@ -385,10 +434,10 @@ module.exports = {
 
       const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id image'); // Assuming you want to return usernames and ids
 
-      resSend(res, true, users, 'Chat users fetched successfully.');
+      resSend(res, true, users, 'Chat users fetched successfully.', 200);
     } catch (err) {
       console.error('Error fetching chat users:', err);
-      resSend(res, false, null, 'Internal server error.');
+      resSend(res, false, null, 'Internal server error.', 500);
     }
   },
 
@@ -406,10 +455,10 @@ module.exports = {
           ],
         })
         .sort('createdAt');
-      resSend(res, true, messages, 'Messages fetched successfully.');
+      resSend(res, true, messages, 'Messages fetched successfully.', 200);
     } catch (err) {
       console.error('Error fetching messages:', err);
-      resSend(res, false, null, 'Internal server error.');
+      resSend(res, false, null, 'Internal server error.', 500);
     }
   },
 };

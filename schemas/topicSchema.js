@@ -10,7 +10,15 @@ const replySchema = new Schema({
   },
   message: {
     type: String,
-    required: true,
+    required: false,
+  },
+  youtubeVideoId: {
+    type: String,
+    required: false,
+  },
+  imageUrl: {
+    type: String,
+    required: false,
   },
   createdAt: {
     type: Date,

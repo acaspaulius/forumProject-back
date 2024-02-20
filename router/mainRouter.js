@@ -17,6 +17,7 @@ const {
   getUserDiscussions,
   getChatUsers,
   getMessages,
+  deleteComment,
 } = require('../controller/mainController');
 const { validEmail, validPassword, validToken, validLink } = require('../middleware/middleware');
 
@@ -35,6 +36,7 @@ router.post('/discussions', validToken, createDiscussion);
 router.get('/forum/:topic/:id', getSingleDiscussion);
 
 router.post('/forum/:topic/:id/comments', validToken, createComment);
+router.post('/forum/:topic/:id/comments/:commentId', validToken, deleteComment);
 
 // Route to get discussions created by the user
 router.get('/userDiscussions', validToken, getUserDiscussions);
