@@ -33,7 +33,6 @@ io.on('connection', (socket) => {
 
   // listen for 'sendMessage' events from clients
   socket.on('sendMessage', async (data) => {
-    console.log(data);
     // validate that required fields are present
     if (!data.from || !data.to || !data.message) {
       console.error('Error: Missing required fields');
