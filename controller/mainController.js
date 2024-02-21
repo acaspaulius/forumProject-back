@@ -464,8 +464,6 @@ module.exports = {
         })
         .populate('from to isRead', 'username');
 
-      console.log(messages);
-
       const userIds = [...new Set(messages.flatMap((msg) => [msg.from.id, msg.to.id].filter((id) => id.toString() !== userId.toString())))];
 
       // initialize an empty object to store the unread message counts for each user
