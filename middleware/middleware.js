@@ -10,7 +10,6 @@ module.exports = {
     const { email } = req.body;
 
     if (!validator.validate(email)) {
-      // Notice the HTTP status code is now included
       return resSend(res, false, null, 'Invalid email address.', 400);
     }
     next();
@@ -27,11 +26,9 @@ module.exports = {
       return resSend(res, false, null, 'Password must contain at least one uppercase letter.', 400);
     } else if (!/[0-9]/.test(password1)) {
       return resSend(res, false, null, 'Password must contain at least one digit.', 400);
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(password1)) {
+      return resSend(res, false, null, 'Password must contain at least one special character.', 400);
     }
-    //  else if (!/[!@#$%^&*(),.?":{}|<>]/.test(password1)) {
-    //   return resSend(res, false, null, 'Password must contain at least one special character.', 400);
-    // }
-    // To add special character validation
 
     next();
   },
@@ -57,7 +54,7 @@ module.exports = {
     const { newImg } = req.body;
 
     if (!newImg.startsWith('http://') && !newImg.startsWith('https://')) {
-      return resSend(res, false, null, 'Invalid newImg URL. It must start with http:// or https://.', 400);
+      return resSend(res, false, null, 'Invalid image URL. It must start with http:// or https://.', 400);
     }
     next();
   },

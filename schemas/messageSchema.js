@@ -9,6 +9,7 @@ const MessageSchema = new Schema({
     required: true,
   },
   createdAt: { type: Date, default: Date.now },
+  isRead: { type: Boolean, default: false },
 });
 
 const order = mongoose.model('forumMessages', MessageSchema);

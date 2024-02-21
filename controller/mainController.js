@@ -1,4 +1,3 @@
-const { v4: uuidv4 } = require('uuid');
 const resSend = require('../plugins/resSend');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -12,19 +11,23 @@ require('dotenv').config();
 module.exports = {
   register: async (req, res) => {
     const { username, email, password1, role } = req.body;
+
     try {
       const existingUsernameUser = await userSchema.findOne({ username });
+
       if (existingUsernameUser) {
         return resSend(res, false, null, 'Username already taken.', 409); // 409 Conflict
       }
 
       const existingEmailUser = await userSchema.findOne({ email });
+
       if (existingEmailUser) {
         return resSend(res, false, null, 'Email already taken.', 409); // 409 Conflict
       }
 
       const hashedPassword = await bcrypt.hash(password1, 10);
       const activationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
       const newUser = new userSchema({
         username,
         email,
@@ -44,12 +47,14 @@ module.exports = {
           pass: process.env.GMAIL_PASS,
         },
       });
+
       const mailOptions = {
         from: 'Forum Control',
         to: email,
         subject: 'Your activation code.',
         text: `Your activation code is: ${activationCode}`,
       };
+
       await transporter.sendMail(mailOptions);
 
       resSend(res, true, null, 'Registration successful. Please check your email for the activation code.', 201); // 201 Created
@@ -59,7 +64,8 @@ module.exports = {
   },
 
   login: async (req, res) => {
-    const { username, password1 } = req.body;
+    const { username, password1, loginCheckbox } = req.body;
+
     try {
       const existingUser = await userSchema.findOne({ username });
 
@@ -68,13 +74,14 @@ module.exports = {
       }
 
       if (!existingUser.isActive) {
-        return resSend(res, false, null, 'User is not verified. Please enter activation code.', 401); // 401 Unauthorized
+        return resSend(res, false, null, 'User is not verified. Please enter activation code.', 201);
       }
 
       const isPasswordMatch = await bcrypt.compare(password1, existingUser.password);
+
       if (isPasswordMatch) {
         const token = jwt.sign({ username: existingUser.username }, process.env.JWT_SECRET, {
-          expiresIn: '12h',
+          expiresIn: loginCheckbox ? '48h' : '2h',
         });
 
         return resSend(
@@ -104,6 +111,7 @@ module.exports = {
 
     try {
       const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+
       const user = await userSchema.findOne({
         username: decodedToken.username,
       });
@@ -143,19 +151,28 @@ module.exports = {
         username,
         emailActivation: activationCode.trim(),
       });
+
       if (!user) {
         return resSend(res, false, null, 'Incorrect code or user.', 400);
       }
 
       user.isActive = true;
+
       user.emailActivation = '';
+
       await user.save();
 
       const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, {
         expiresIn: '1h',
       });
 
-      resSend(res, true, { token, username: user.username }, 'User successfully activated.', 200);
+      resSend(
+        res,
+        true,
+        { token, username: user.username, email: user.email, image: user.image, role: user.role, _id: user._id },
+        'User successfully activated.',
+        200
+      );
     } catch (error) {
       resSend(res, false, null, 'Error verifying activation code.', 500);
     }
@@ -165,13 +182,24 @@ module.exports = {
     const { newImg } = req.body;
     const { username } = req.user;
 
-    const updatedUser = await userSchema.findOneAndUpdate({ username }, { $set: { image: newImg } }, { new: true, runValidators: true });
+    try {
+      const updatedUser = await userSchema.findOneAndUpdate({ username }, { $set: { image: newImg } }, { new: true, runValidators: true });
 
-    if (!updatedUser) {
-      return resSend(res, false, null, 'User not found or could not be updated.', 404);
+      if (!updatedUser) {
+        return resSend(res, false, null, 'User not found or could not be updated.', 404);
+      }
+
+      return resSend(
+        res,
+        true,
+        { username, image: updatedUser.image, role: updatedUser.role, _id: updatedUser._id },
+        'Image updated successfully.',
+        200
+      );
+    } catch (error) {
+      console.error(error);
+      return resSend(res, false, null, 'An error occurred while updating the image.', 500);
     }
-
-    return resSend(res, true, { username, image: updatedUser.image, role: updatedUser.role }, 'Image updated successfully.', 200);
   },
 
   createTopic: async (req, res) => {
@@ -179,8 +207,8 @@ module.exports = {
     const { username } = req.user;
 
     try {
-      // First, find the user to check if they are an admin
       const user = await userSchema.findOne({ username });
+
       if (!user) {
         return resSend(res, false, null, 'User not found.', 404);
       }
@@ -189,15 +217,13 @@ module.exports = {
         return resSend(res, false, null, 'Only admins can create topics.', 403);
       }
 
-      // User is found and is an admin, create the topic
       const newTopic = new topicSchema({
         title: title.toLowerCase(),
-        createdBy: user._id, // Assuming you have a createdBy field that references the User model
+        createdBy: user._id,
       });
 
-      console.log(newTopic);
-
       await newTopic.save();
+
       return resSend(res, true, newTopic, 'Topic created successfully.', 201);
     } catch (error) {
       console.error('Create Topic Error:', error);
@@ -207,7 +233,8 @@ module.exports = {
 
   getTopics: async (req, res) => {
     try {
-      const topics = await topicSchema.find(); // Fetch all topics
+      const topics = await topicSchema.find(); // fetch all topics
+
       resSend(res, true, topics, 'Topics fetched successfully.', 200);
     } catch (error) {
       console.error('Error fetching topics:', error);
@@ -217,7 +244,7 @@ module.exports = {
 
   createDiscussion: async (req, res) => {
     try {
-      // Convert topic title from the request body to lowercase to ensure consistency
+      // convert topic title from the request body to lowercase to ensure consistency
       const topicTitle = req.body.topic.toLowerCase();
 
       const topic = await topicSchema.findOne({ title: topicTitle });
@@ -229,11 +256,13 @@ module.exports = {
       const newDiscussion = {
         title: req.body.title,
         description: req.body.description,
-        user: req.user._id, // Assuming you have user data in req.user
+        user: req.user._id,
       };
 
       topic.discussions.push(newDiscussion);
+
       await topic.save();
+
       resSend(res, true, newDiscussion, 'Discussion created successfully', 201);
     } catch (error) {
       resSend(res, false, error.message, 500);
@@ -242,13 +271,14 @@ module.exports = {
 
   getDiscussions: async (req, res) => {
     try {
-      // Convert topic in the URL parameter to lowercase to ensure consistency
       const topicTitle = req.params.topic.toLowerCase();
 
       const topic = await topicSchema.findOne({ title: topicTitle });
+
       if (!topic) {
         return resSend(res, false, 'Topic not found', 404);
       }
+
       resSend(res, true, topic.discussions, 'Discussions retrieved successfully', 201);
     } catch (error) {
       resSend(res, false, error.message, 500);
@@ -257,17 +287,16 @@ module.exports = {
 
   getSingleDiscussion: async (req, res) => {
     try {
-      // Ensure you're finding the topic that contains the discussion
+      // ensure you're finding the topic that contains the discussion
       const topic = await topicSchema
         .findOne({ 'discussions._id': req.params.id })
         .populate({
-          path: 'discussions.user', // Populate the discussion creator
+          path: 'discussions.user', // populate the discussion creator
           select: 'username image',
         })
         .populate({
-          // Attempt to populate replies' user information directly might not work as expected due to path definition
           path: 'discussions.replies.user',
-          model: 'forumUsers', // Ensure this matches your User model's name
+          model: 'forumUsers',
           select: 'username image',
         });
 
@@ -275,7 +304,7 @@ module.exports = {
         return resSend(res, false, 'Topic not found', 404);
       }
 
-      // Extract the specific discussion from the topic document, this part remains unchanged
+      // extract the specific discussion from the topic document, this part remains unchanged
       const discussion = topic.discussions.id(req.params.id);
       if (!discussion) {
         return resSend(res, false, 'Discussion not found', 404);
@@ -293,19 +322,21 @@ module.exports = {
       const { text, youtubeVideoId, imageUrl } = req.body;
       const userId = req.user._id;
 
-      // Find the topic by its title
+      // find the topic by its title
       const topicDocument = await topicSchema.findOne({ title: topic });
+
       if (!topicDocument) {
         return resSend(res, false, 'Topic not found', 404);
       }
 
-      // Find the specific discussion by ID within the topic
+      // find the specific discussion by ID within the topic
       const discussion = topicDocument.discussions.find((discussion) => discussion._id.toString() === id);
+
       if (!discussion) {
         return resSend(res, false, 'Discussion not found', 404);
       }
 
-      // Add the comment to the found discussion
+      // add the comment to the found discussion
       discussion.replies.push({
         user: userId,
         message: text,
@@ -314,10 +345,10 @@ module.exports = {
         createdAt: new Date(),
       });
 
-      // Mark the modified path before saving
+      // mark the modified path before saving
       topicDocument.markModified('discussions');
 
-      // Save the updated topic document
+      // save the updated topic document
       await topicDocument.save();
 
       resSend(res, true, { replies: discussion.replies }, 'Comment added successfully', 200);
@@ -332,29 +363,31 @@ module.exports = {
       const { topic, id, commentId } = req.params;
       const userId = req.user._id.toString();
 
-      // Find the topic document that contains the discussion
-      const topicDocument = await topicSchema.findOne({ 'discussions._id': id });
+      // find the topic document that contains the discussion
+      const topicDocument = await topicSchema.findOne({
+        'discussions._id': id,
+      });
 
       if (!topicDocument) {
         return resSend(res, false, 'Discussion not found', 404);
       }
 
-      // Find the specific discussion
+      // find the specific discussion
       const discussion = topicDocument.discussions.id(id);
       if (!discussion) {
         return resSend(res, false, 'Discussion not found', 404);
       }
 
-      // Find the specific comment and check if the user is authorized to delete it
+      // find the specific comment and check if the user is authorized to delete it
       const commentIndex = discussion.replies.findIndex((c) => c._id.toString() === commentId && c.user.toString() === userId);
       if (commentIndex === -1) {
         return resSend(res, false, 'Comment not found or user not authorized', 401);
       }
 
-      // Remove the comment
+      // remove the comment
       discussion.replies.splice(commentIndex, 1);
 
-      // Save the updated topic document
+      // save the updated topic document
       await topicDocument.save();
 
       resSend(res, true, {}, 'Comment deleted successfully', 200);
@@ -376,6 +409,7 @@ module.exports = {
           _id: 0,
         })
         .lean();
+
       const simplifiedData = userDiscussions.map((topic) => ({
         topic: topic.title,
         topicId: topic._id,
@@ -404,14 +438,15 @@ module.exports = {
               userComments.push({
                 discussionTitle: discussion.title,
                 comment: reply.message,
-                topic: topic, // Assuming the topic object has an _id field
-                discussionId: discussion._id, // Assuming the discussion object has an _id field
+                topic: topic,
+                discussionId: discussion._id,
                 time: reply.createdAt,
               });
             }
           });
         });
       });
+
       resSend(res, true, userComments, 'User comments retrieved successfully.', 200);
     } catch (error) {
       console.error('Error fetching user comments:', error);
@@ -421,20 +456,52 @@ module.exports = {
 
   getChatUsers: async (req, res) => {
     try {
-      // Instead of getting userId from params, use it from the verified token
-      const userId = req.user._id; // Assuming req.user is set by validToken middleware
+      const userId = req.user._id;
 
       const messages = await messageSchema
         .find({
           $or: [{ from: userId }, { to: userId }],
         })
-        .populate('from to', 'username');
+        .populate('from to isRead', 'username');
+
+      console.log(messages);
 
       const userIds = [...new Set(messages.flatMap((msg) => [msg.from.id, msg.to.id].filter((id) => id.toString() !== userId.toString())))];
 
-      const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id image'); // Assuming you want to return usernames and ids
+      // initialize an empty object to store the unread message counts for each user
+      const unreadMessageCounts = {};
 
-      resSend(res, true, users, 'Chat users fetched successfully.', 200);
+      // iterate through each user ID in the userIds array
+      userIds.forEach((userId) => {
+        // filter messages to include only those where the recipient is the current user ID and isRead is false
+        const userUnreadMessages = messages.filter((msg) => msg.from.id.toString() === userId.toString() && !msg.isRead);
+        // calculate the count of unread messages for the current user ID
+        const unreadCount = userUnreadMessages.length;
+        // store the unread message count for the current user ID in the unreadMessageCounts object
+        unreadMessageCounts[userId] = unreadCount;
+      });
+
+      const users = await userSchema.find({ _id: { $in: userIds } }).select('username _id image'); // assuming you want to return usernames and ids
+
+      // create an array to store the modified user objects with unreadMessagesCount
+      const usersWithUnreadMessageCounts = await Promise.all(
+        users.map(async (user) => {
+          // calculate the count of unread messages for the current user
+          const unreadCount = unreadMessageCounts[user._id.toString()] || 0;
+
+          // create a new object with the user data and the unreadMessagesCount field
+          const userWithUnreadCount = {
+            _id: user._id,
+            username: user.username,
+            image: user.image,
+            unreadMessagesCount: unreadCount,
+          };
+
+          return userWithUnreadCount;
+        })
+      );
+
+      resSend(res, true, usersWithUnreadMessageCounts, 'Chat users fetched successfully.', 200);
     } catch (err) {
       console.error('Error fetching chat users:', err);
       resSend(res, false, null, 'Internal server error.', 500);
@@ -443,9 +510,8 @@ module.exports = {
 
   getMessages: async (req, res) => {
     try {
-      // Use req.user to fetch messages for the authenticated user
-      const userId = req.user._id; // Assuming req.user is set by validToken middleware
-      const { toId } = req.params; // Assuming you're fetching messages between the authenticated user and another specified user
+      const userId = req.user._id;
+      const { toId } = req.params; // fetching messages between the authenticated user and another specified user
 
       const messages = await messageSchema
         .find({
@@ -455,6 +521,7 @@ module.exports = {
           ],
         })
         .sort('createdAt');
+
       resSend(res, true, messages, 'Messages fetched successfully.', 200);
     } catch (err) {
       console.error('Error fetching messages:', err);

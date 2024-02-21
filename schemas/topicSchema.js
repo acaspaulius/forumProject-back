@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Define a Reply schema
 const replySchema = new Schema({
   user: {
     type: Schema.Types.ObjectId,
@@ -24,10 +23,8 @@ const replySchema = new Schema({
     type: Date,
     default: Date.now,
   },
-  // Add any other fields as necessary
 });
 
-// Define a Discussion schema
 const discussionSchema = new Schema({
   title: {
     type: String,
@@ -46,22 +43,21 @@ const discussionSchema = new Schema({
     type: Date,
     default: Date.now,
   },
-  replies: [replySchema], // Embed the replies here
+  replies: [replySchema],
 });
 
-// Define the main Topic schema
 const topicSchema = new Schema({
   title: {
     type: String,
     required: true,
-    unique: true, // Topic titles should be unique
+    unique: true,
   },
   createdBy: {
     type: Schema.Types.ObjectId,
     ref: 'forumUsers',
     required: true,
   },
-  discussions: [discussionSchema], // Embed the discussions directly within the topic
+  discussions: [discussionSchema],
 });
 
 const order = mongoose.model('forumTopics', topicSchema);

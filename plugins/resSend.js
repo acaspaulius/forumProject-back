@@ -3,5 +3,6 @@ module.exports = (res, success, data, message, status) => {
     success,
     data,
     message,
+    status,
   });
 };
